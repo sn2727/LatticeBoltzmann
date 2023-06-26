@@ -18,9 +18,16 @@ class LB():
     velocityFig, velocityAx, velocityStreamPlot = None, None, None 
     
     # initialize density and figures for plotting 
-    def __init__(self):
+    def __init__(self, F=[]):
+        if F == []:
+            self.F = np.ones((self.Ny,self.Nx,self.NL))
+        else: 
+            self.F = F 
         self.rho = self.calculateDensity()
         self.ux, self.uy = self.calculateVelocity()
+        self.xaxis = np.linspace(0, self.Nx, self.Nx)
+        self.yaxis = np.linspace(0, self.Ny, self.Ny)
+        self.X, self.Y = np.meshgrid(self.xaxis, self.yaxis)
         self.densityFig, self.densityAx = plt.subplots()
         self.densityFigureMesh = self.densityAx.pcolormesh(self.X, self.Y, self.rho, shading='auto')
         self.densityFig.savefig(f'plots/basic/density_timestep{0}.png')
@@ -104,7 +111,7 @@ class LB():
     def updateVelocityFigure(self, ux, uy, timestep = 0):
         self.velocityAx.set_title(f"timestep: {timestep} omega: {self.omega}")
         self.velocityAx.cla()
-        self.velocityAx.streamplot(self.X, self.Y, self.ux, self.uy, density = 0.5)  
+        self.velocityAx.streamplot(self.X, self.Y, ux, uy, density = 0.5)  
         self.velocityFig.savefig(f'plots/basic/velocity_timestep{timestep}.png')
 
 
@@ -128,6 +135,24 @@ class LB():
         # smaller omega --> slower collisions to reach eq --> high viscosity
         # larger omega --> faster collisions
         self.F += self.omega * (Feq - self.F)
+
+    def calcFeq(self, rho, ux, uy): 
+        Feq = np.zeros(self.F.shape)
+        for i, cx, cy, w in zip(self.idxs, self.cxs, self.cys, self.weights):
+            Feq[:,:,i] = rho*w* (1 + 3*(cx*ux+cy*uy) + 9*(cx*ux+cy*uy)**2/2 - 3*(ux**2+uy**2)/2)
+        return Feq
+    
+    
+    def calcFeq2(self, density, velocity_field):
+        C = np.ascontiguousarray(
+             np.array([[0,1,1,0,-1,-1,-1,0,1], 
+                       [0,0,1,1,1,0,-1,-1,-1]]).T
+        )
+        c_dot_vf = (velocity_field[:, :, :, None] * C.T[None, None])
+        c_dot_vf = np.sum(c_dot_vf, axis=2)
+        vf_norm_square = np.sum(velocity_field**2, axis=2)[:, :, None]
+        feq = self.weights * (density[:, :, None] * (1 + 3 * c_dot_vf + 4.5*c_dot_vf**2 - 1.5*vf_norm_square))
+        return feq
 
     # Simulation
     def simulate(self, timesteps=1000, showDensityPlot=True, showVelocityPlot=True):
