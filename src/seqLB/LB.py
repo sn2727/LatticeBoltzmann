@@ -30,10 +30,10 @@ class LB():
         self.X, self.Y = np.meshgrid(self.xaxis, self.yaxis)
         self.densityFig, self.densityAx = plt.subplots()
         self.densityFigureMesh = self.densityAx.pcolormesh(self.X, self.Y, self.rho, shading='auto')
-        self.densityFig.savefig(f'plots/basic/density_timestep{0}.png')
+        self.densityFig.savefig(f'./plots/basic/density_timestep{0}.png')
         self.velocityFig, self.velocityAx = plt.subplots()
-        self.velocityStreamPlot = self.velocityAx.streamplot(self.X, self.Y, self.ux, self.uy, density = 0.5)
-        self.velocityFig.savefig(f'plots/basic/velocity_timestep{0}.png')
+        self.velocityStreamPlot = self.velocityAx.streamplot(self.X, self.Y, self.ux, self.uy, density = 2)
+        self.velocityFig.savefig(f'./plots/basic/velocity_timestep{0}.png')
 
     # call if parameters are changed to recalc density and velocities
     def fitParams(self): 
@@ -53,7 +53,7 @@ class LB():
     NL = 9
     idxs = np.arange(NL)
 
-    # velocity vectors, splitted into x and y vectors
+    # velocity vectors, splitted into x and y components
     cxs = np.array([0, 0, 1, 1, 1, 0,-1,-1,-1])
     cys = np.array([0, 1, 1, 0,-1,-1,-1, 0, 1])
 
@@ -105,14 +105,14 @@ class LB():
     def updateDensityFigure(self, density, timestep = 0):
         self.densityAx.set_title(f"timestep: {timestep} omega: {self.omega}")
         self.densityFigureMesh.update({'array':density})
-        self.densityFig.savefig(f'plots/basic/density_timestep{timestep}.png')
+        self.densityFig.savefig(f'./plots/basic/density_timestep{timestep}.png')
 
     # function to update the velocity field grid 
     def updateVelocityFigure(self, ux, uy, timestep = 0):
         self.velocityAx.set_title(f"timestep: {timestep} omega: {self.omega}")
         self.velocityAx.cla()
-        self.velocityAx.streamplot(self.X, self.Y, ux, uy, density = 0.5)  
-        self.velocityFig.savefig(f'plots/basic/velocity_timestep{timestep}.png')
+        self.velocityAx.streamplot(self.X, self.Y, ux, uy, density = 2)  
+        self.velocityFig.savefig(f'./plots/basic/velocity_timestep{timestep}.png')
 
 
     # Streaming function
@@ -142,19 +142,8 @@ class LB():
             Feq[:,:,i] = rho*w* (1 + 3*(cx*ux+cy*uy) + 9*(cx*ux+cy*uy)**2/2 - 3*(ux**2+uy**2)/2)
         return Feq
     
-    
-    def calcFeq2(self, density, velocity_field):
-        C = np.ascontiguousarray(
-             np.array([[0,1,1,0,-1,-1,-1,0,1], 
-                       [0,0,1,1,1,0,-1,-1,-1]]).T
-        )
-        c_dot_vf = (velocity_field[:, :, :, None] * C.T[None, None])
-        c_dot_vf = np.sum(c_dot_vf, axis=2)
-        vf_norm_square = np.sum(velocity_field**2, axis=2)[:, :, None]
-        feq = self.weights * (density[:, :, None] * (1 + 3 * c_dot_vf + 4.5*c_dot_vf**2 - 1.5*vf_norm_square))
-        return feq
 
-    # Simulation
+    # Basic simulation function  
     def simulate(self, timesteps=1000, showDensityPlot=True, showVelocityPlot=True):
         
         for _ in range(timesteps):
