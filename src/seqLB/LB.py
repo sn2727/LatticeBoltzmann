@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os 
 
+PLOTDIR = os.getcwd() + '\\src\\plots\\'
 
 """
 Skeleton code of Lattice Boltzmann class holding all parameters 
@@ -18,6 +20,7 @@ class LB():
     velocityFig, velocityAx, velocityStreamPlot = None, None, None 
     
     # initialize density and figures for plotting 
+    # default F is all ones but can be initialized arbitrarily 
     def __init__(self, F=[]):
         if F == []:
             self.F = np.ones((self.Ny,self.Nx,self.NL))
@@ -30,10 +33,10 @@ class LB():
         self.X, self.Y = np.meshgrid(self.xaxis, self.yaxis)
         self.densityFig, self.densityAx = plt.subplots()
         self.densityFigureMesh = self.densityAx.pcolormesh(self.X, self.Y, self.rho, shading='auto')
-        self.densityFig.savefig(f'./plots/basic/density_timestep{0}.png')
+        self.densityFig.savefig(f'{PLOTDIR}/basic/density_timestep{0}.png')
         self.velocityFig, self.velocityAx = plt.subplots()
         self.velocityStreamPlot = self.velocityAx.streamplot(self.X, self.Y, self.ux, self.uy, density = 2)
-        self.velocityFig.savefig(f'./plots/basic/velocity_timestep{0}.png')
+        self.velocityFig.savefig(f'{PLOTDIR}/basic/velocity_timestep{0}.png')
 
     # call if parameters are changed to recalc density and velocities
     def fitParams(self): 
@@ -105,14 +108,14 @@ class LB():
     def updateDensityFigure(self, density, timestep = 0):
         self.densityAx.set_title(f"timestep: {timestep} omega: {self.omega}")
         self.densityFigureMesh.update({'array':density})
-        self.densityFig.savefig(f'./plots/basic/density_timestep{timestep}.png')
+        self.densityFig.savefig(f'{PLOTDIR}/basic/density_timestep{timestep}.png')
 
     # function to update the velocity field grid 
     def updateVelocityFigure(self, ux, uy, timestep = 0):
         self.velocityAx.set_title(f"timestep: {timestep} omega: {self.omega}")
         self.velocityAx.cla()
         self.velocityAx.streamplot(self.X, self.Y, ux, uy, density = 2)  
-        self.velocityFig.savefig(f'./plots/basic/velocity_timestep{timestep}.png')
+        self.velocityFig.savefig(f'{PLOTDIR}/basic/velocity_timestep{timestep}.png')
 
 
     # Streaming function
@@ -123,20 +126,17 @@ class LB():
             self.F[:,:,i] = np.roll(self.F[:,:,i], cy, axis=0)
 
     def collision(self):
-        Feq = np.zeros(self.F.shape)
-        # calculate the local equilibrium for each lattice point by given equation
-        # mind that rho and cx,cy have to be recalculated after streaming before using this function
-        for i, cx, cy, w in zip(self.idxs, self.cxs, self.cys, self.weights):
-            Feq[:,:,i] = self.rho*w* (1 + 3*(cx*self.ux+cy*self.uy) + 9*(cx*self.ux+cy*self.uy)**2/2 - 3*(self.ux**2+self.uy**2)/2)
-
         # simulate collisions 
+        # calculate the local equilibrium for each lattice point by given equation
         # basically each lattice point gets added a fraction of its difference to the equilibrium  
         # the fraction is controlled by the omega value with the following interpretation 
         # smaller omega --> slower collisions to reach eq --> high viscosity
         # larger omega --> faster collisions
+        Feq = self.calcFeq(self.rho, self.ux, self.uy)
         self.F += self.omega * (Feq - self.F)
 
     def calcFeq(self, rho, ux, uy): 
+        # calculate the local equilibrium for each lattice point 
         Feq = np.zeros(self.F.shape)
         for i, cx, cy, w in zip(self.idxs, self.cxs, self.cys, self.weights):
             Feq[:,:,i] = rho*w* (1 + 3*(cx*ux+cy*uy) + 9*(cx*ux+cy*uy)**2/2 - 3*(ux**2+uy**2)/2)
@@ -144,7 +144,7 @@ class LB():
     
 
     # Basic simulation function  
-    def simulate(self, timesteps=1000, showDensityPlot=True, showVelocityPlot=True):
+    def simulate(self, timesteps=1000):
         
         for _ in range(timesteps):
             # apply drift/stream

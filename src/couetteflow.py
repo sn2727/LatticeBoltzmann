@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from seqLB.LB import LB  
+from seqLB.LB import LB, PLOTDIR
 from seqLB.boundaries import * 
 
 
@@ -66,9 +66,10 @@ def simulate(lb):
         axes[0].set_xlabel('velocity')
         axes[0].legend(['Moving Wall', 'Rigid Wall',
                         'Simulated Velocity', 'Analytical Velocity'])
-        figs[0].savefig(f"./plots/couetteflow/img_{i}", bbox_inches='tight', pad_inches=0)
+        figs[0].savefig(f"{PLOTDIR}/couetteflow/img_{i}", bbox_inches='tight', pad_inches=0)
 
 def couetteflow(): 
+    
     lb = LB()
     lb.Nx = Nx 
     lb.Ny = Ny 

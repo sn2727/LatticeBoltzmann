@@ -1,10 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from seqLB.LB import LB  
+from seqLB.LB import LB, PLOTDIR
 from seqLB.boundaries import * 
 
+# grid size in x and y direction
 Nx = 300
 Ny = 300
+# omega parameter
 omega = 1
 
 # wall velocity
@@ -50,7 +52,7 @@ def simulate(lb):
     if i % SAVE_EVERY == 0:          
         lb.updateVelocityFigure(lb.ux, lb.uy, timestep = i)
         lb.velocityFig.density = 2 
-        lb.velocityFig.savefig(f"./plots/slidinglid/img_{i}", bbox_inches='tight', pad_inches=0)
+        lb.velocityFig.savefig(f"{PLOTDIR}/slidinglid/img_{i}", bbox_inches='tight', pad_inches=0)
 
 
 def slidinglid(): 

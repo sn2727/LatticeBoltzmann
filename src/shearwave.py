@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.signal import argrelextrema 
-from seqLB.LB import LB  
+from seqLB.LB import LB, PLOTDIR  
 
 # Grid size in x and y directions 
 Nx = 50
@@ -15,8 +15,8 @@ rhoInitial = 1
 timesteps = 2000
 
 # set the respective to true to either run the velocity or density experiment 
-VELOCITY = True  
-DENSITY = False 
+VELOCITY = False
+DENSITY = True 
 assert(VELOCITY != DENSITY)
 
 omega = 1 
@@ -62,7 +62,7 @@ def simulate(lb,  timesteps = 1000, plotting=True):
                     densitySWAx.plot(range(Nx), data)
                     densitySWAx.set_ylim([rhoInitial-epsilon,rhoInitial+epsilon])
                     densitySWAx.set_title(f'timestep: {i}, w={omega}')
-                    densitySWFig.savefig(f'./plots/shearwave/density_timestep{i}.png')
+                    densitySWFig.savefig(f'{PLOTDIR}/shearwave/density_timestep{i}.png')
                     plt.close(densitySWFig)
 
         if VELOCITY:
@@ -76,7 +76,7 @@ def simulate(lb,  timesteps = 1000, plotting=True):
                     velocitySWAx.plot(range(Ny), data)
                     velocitySWAx.set_ylim([-epsilon,epsilon])
                     velocitySWAx.set_title(f'timestep: {i}, w={omega}')
-                    velocitySWFig.savefig(f'./plots/shearwave/velocity_timestep{i}.png')
+                    velocitySWFig.savefig(f'{PLOTDIR}/shearwave/velocity_timestep{i}.png')
                     plt.close(velocitySWFig)
     return q
 
@@ -148,7 +148,7 @@ def shearwave():
     plt.title("Measured and analytical viscosity for different omegas \n orange = measured viscosity, blue = analytical viscosity")
     plt.xlabel("omega")
     plt.ylabel("viscosity")
-    fig.savefig(f'plots/shearwave/viscosity.png')
+    fig.savefig(f'{PLOTDIR}/shearwave/viscosity.png')
 
     
         
