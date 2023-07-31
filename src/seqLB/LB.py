@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os 
 
-PLOTDIR = os.getcwd() + '\\src\\plots\\'
+PLOTDIR = os.getcwd() + '/src/plots'
 
 """
 Skeleton code of Lattice Boltzmann class holding all parameters 
