@@ -64,7 +64,7 @@ def simulate(lb):
         axes[0].plot(analyticalVelocity, y)
         axes[0].set_ylabel('y')
         axes[0].set_xlabel('velocity')
-        axes[0].legend(['Moving Wall', 'Rigid Wall',
+        axes[0].legend(['Rigid Wall', 'Moving Wall',
                         'Simulated Velocity', 'Analytical Velocity'])
         figs[0].savefig(f"{PLOTDIR}/couetteflow/img_{i}", bbox_inches='tight', pad_inches=0)
 
