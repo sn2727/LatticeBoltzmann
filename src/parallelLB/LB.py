@@ -1,16 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
-#import mpi4py
-from mpi4py import MPI  
+import os 
+from mpi4py import MPI
+
+PLOTDIR = os.getcwd() + '\\src\\plots\\'
 
 """
 Skeleton code of Lattice Boltzmann class holding all parameters 
 and providing basic streaming and collision simulation  
 """
 class LB(): 
-
+    
     comm = MPI.COMM_WORLD
-    workers = comm.Get_size()
+    nWorkers = comm.Get_size()
     rank = comm.Get_rank()
 
     Fpartial = []
@@ -25,11 +27,15 @@ class LB():
     velocityFig, velocityAx, velocityStreamPlot = None, None, None 
     
     # initialize density and figures for plotting 
+    # default F is all ones but can be initialized arbitrarily 
     def __init__(self, F=[]):
         if F == []:
             self.F = np.ones((self.Ny,self.Nx,self.NL))
         else: 
-            self.F = F 
+            self.F = F
+        self.split()
+        self.Ny = self.Fpartial.shape[0]
+        self.Nx = self.Fpartial.shape[1]
         self.rho = self.calculateDensity()
         self.ux, self.uy = self.calculateVelocity()
         self.xaxis = np.linspace(0, self.Nx, self.Nx)
@@ -37,28 +43,89 @@ class LB():
         self.X, self.Y = np.meshgrid(self.xaxis, self.yaxis)
         self.densityFig, self.densityAx = plt.subplots()
         self.densityFigureMesh = self.densityAx.pcolormesh(self.X, self.Y, self.rho, shading='auto')
-        self.densityFig.savefig(f'./plots/basic/density_timestep{0}.png')
+        self.densityFig.savefig(f'{PLOTDIR}/basic/density_timestep{0}.png')
         self.velocityFig, self.velocityAx = plt.subplots()
-        self.velocityStreamPlot = self.velocityAx.streamplot(self.X, self.Y, self.ux, self.uy, density = 0.5)
-        self.velocityFig.savefig(f'./plots/basic/velocity_timestep{0}.png')
-        self.split()
+        self.velocityStreamPlot = self.velocityAx.streamplot(self.X, self.Y, self.ux, self.uy, density = 2)
+        self.velocityFig.savefig(f'{PLOTDIR}/basic/velocity_timestep{0}.png')
 
     # call if parameters are changed to recalc density and velocities
     def fitParams(self): 
         self.__init__()
 
-    
     def split(self):
-        # splits F into the part for this process according to the number of available processes
-        # array_split handles non zero modulo divisions  
-        arrs = np.array_split(self.F, self.workers, axis=0)
+        # splits F into the part for this process according to the number of available workers
+        # numpy's array_split handles non zero modulo divisions  
+        arrs = np.array_split(self.F, self.nWorkers, axis=0)
         self.Fpartial = np.concatenate([arrs[self.rank-1][-1:],
                                 arrs[self.rank],
-                                arrs[(self.rank+1) % self.workers][:1]])
+                                arrs[(self.rank+1) % self.nWorkers][:1]])
         
+    def communicate(self):
+        # communication with the neighboring rows to update the borders in each subdomain 
+        # uses blocking send and receive functions 
+        
+        workers = np.arange(self.nWorkers)
+        recBuffer = np.ascontiguousarray(self.Fpartial[0,:,:].copy())
+
+        bottomRank = workers[self.rank - 1]
+        topRank = workers[(self.rank + 1) % self.nWorkers]
+
+        # update ghost region at bottom and send own data
+        self.comm.Sendrecv(np.ascontiguousarray(self.Fpartial[1,:,:].copy()), dest=bottomRank,
+                           recvbuf=recBuffer, source=bottomRank)
+        self.Fpartial[0,:,:] = recBuffer
+                
+        # update ghost region at top and send own data
+        self.comm.Sendrecv(np.ascontiguousarray(self.Fpartial[-2,:,:].copy()), dest=topRank,
+                            recvbuf=recBuffer, source=topRank)
+        self.Fpartial[-1,:,:] = recBuffer
+
+
+    def communicateNonBlocking(self):  
+        # non blocking implementation of communication with adjacent subdomains might be more efficient       
+        workers = np.arange(self.nWorkers)
+        recBuffer = np.ascontiguousarray(self.Fpartial[0,:,:].copy())
+
+        bottomRank = workers[self.rank - 1]
+        topRank = workers[(self.rank + 1) % self.nWorkers]
+
+        # send second to last row because that is the last row if we exclude the ghost region          
+        self.comm.Isend(np.ascontiguousarray(self.Fpartial[1,:,:].copy()), dest=bottomRank)
+        # receive this row from the subdomain at the bottom 
+        self.comm.Irecv(recBuffer, source=bottomRank)
+        # wait for all subprocesses
+        self.comm.Barrier()
+        
+        self.Fpartial[0,:,:] = recBuffer
+        
+        # update ghost region at top and send own data
+        self.comm.Isend(np.ascontiguousarray(self.Fpartial[-2,:,:].copy()), dest=topRank)
+        self.comm.Irecv(recBuffer, source=topRank)
+        self.Fpartial[-1,:,:] = recBuffer
+        self.comm.Barrier()
+
+
     def gather(self): 
-        # collect partial Fs from other processes
-        pass
+        # subprocess 0 gathers all subdomains and combines them to return the full lattice
+        if (self.rank != 0): 
+            self.comm.Isend(np.ascontiguousarray(self.Fpartial).copy(), dest=0)
+        self.comm.Barrier()
+        recBuffer = self.Fpartial.copy()
+        Ffull = self.Fpartial.copy()
+        Ffull = Ffull[1:-1]
+
+        if self.rank == 0:
+            # calculate complete F from all subdomains stripping awawy ghost regions 
+            for i in range(1, self.nWorkers):
+                self.comm.Irecv(recBuffer, source=i)
+                Ffull = np.append(Ffull, recBuffer[1:-1], axis=0)
+                self.F = Ffull
+        
+        # propagate F to every else process
+        self.F = self.comm.bcast(Ffull, root=0)
+
+        return Ffull
+
 
     # Grid size in x and y directions 
     Nx = 50
@@ -74,7 +141,7 @@ class LB():
     NL = 9
     idxs = np.arange(NL)
 
-    # velocity vectors, splitted into x and y vectors
+    # velocity vectors, splitted into x and y components
     cxs = np.array([0, 0, 1, 1, 1, 0,-1,-1,-1])
     cys = np.array([0, 1, 1, 0,-1,-1,-1, 0, 1])
 
@@ -103,15 +170,15 @@ class LB():
     # calculates density for each lattice point over third axis of F 
     # that means to sum up the 9 density values of each lattice point 
     def calculateDensity(self): 
-        self.rho = np.sum(self.F,2)
+        self.rho = np.sum(self.Fpartial,-1)
         return self.rho
 
     # calculates the velocity at each lattice point by doint the same calculation as for density but multiplied by our 
     # velocity vectors and dividing by the density 
     # returns tuple of array which hold x respectively y value for each lattice point 
     def calculateVelocity(self):
-        self.ux = np.sum(self.F*self.cxs,2) / self.rho
-        self.uy = np.sum(self.F*self.cys,2) / self.rho
+        self.ux = np.sum(self.Fpartial*self.cxs,2) / self.rho
+        self.uy = np.sum(self.Fpartial*self.cys,2) / self.rho
         return (self.ux, self.uy)
 
     # mass of the fluid, can be used to verify mass conservation between timesteps
@@ -126,57 +193,43 @@ class LB():
     def updateDensityFigure(self, density, timestep = 0):
         self.densityAx.set_title(f"timestep: {timestep} omega: {self.omega}")
         self.densityFigureMesh.update({'array':density})
-        self.densityFig.savefig(f'./plots/basic/density_timestep{timestep}.png')
+        self.densityFig.savefig(f'{PLOTDIR}/basic/density_timestep{timestep}.png')
 
     # function to update the velocity field grid 
     def updateVelocityFigure(self, ux, uy, timestep = 0):
         self.velocityAx.set_title(f"timestep: {timestep} omega: {self.omega}")
         self.velocityAx.cla()
-        self.velocityAx.streamplot(self.X, self.Y, ux, uy, density = 0.5)  
-        self.velocityFig.savefig(f'./plots/basic/velocity_timestep{timestep}.png')
+        self.velocityAx.streamplot(self.X, self.Y, ux, uy, density = 2)  
+        self.velocityFig.savefig(f'{PLOTDIR}/basic/velocity_timestep{timestep}.png')
 
 
     # Streaming function
     # For each lattice point and each direction i, the value in Fi is shifted to the neighbor lattice side 
-    def streaming(self):
+    def streaming(self):     
         for i, cx, cy in zip(self.idxs, self.cxs, self.cys):
-            self.F[:,:,i] = np.roll(self.F[:,:,i], cx, axis=1)
-            self.F[:,:,i] = np.roll(self.F[:,:,i], cy, axis=0)
+            self.Fpartial[:,:,i] = np.roll(self.Fpartial[:,:,i], cx, axis=1)
+            self.Fpartial[:,:,i] = np.roll(self.Fpartial[:,:,i], cy, axis=0)
 
     def collision(self):
-        Feq = np.zeros(self.F.shape)
-        # calculate the local equilibrium for each lattice point by given equation
-        # mind that rho and cx,cy have to be recalculated after streaming before using this function
-        for i, cx, cy, w in zip(self.idxs, self.cxs, self.cys, self.weights):
-            Feq[:,:,i] = self.rho*w* (1 + 3*(cx*self.ux+cy*self.uy) + 9*(cx*self.ux+cy*self.uy)**2/2 - 3*(self.ux**2+self.uy**2)/2)
-
         # simulate collisions 
+        # calculate the local equilibrium for each lattice point by given equation
         # basically each lattice point gets added a fraction of its difference to the equilibrium  
         # the fraction is controlled by the omega value with the following interpretation 
         # smaller omega --> slower collisions to reach eq --> high viscosity
         # larger omega --> faster collisions
-        self.F += self.omega * (Feq - self.F)
+        Feq = self.calcFeq(self.rho, self.ux, self.uy)
+        self.Fpartial += self.omega * (Feq - self.Fpartial)
 
     def calcFeq(self, rho, ux, uy): 
-        Feq = np.zeros(self.F.shape)
+        # calculate the local equilibrium for each lattice point 
+        Feq = np.zeros(self.Fpartial.shape)
         for i, cx, cy, w in zip(self.idxs, self.cxs, self.cys, self.weights):
             Feq[:,:,i] = rho*w* (1 + 3*(cx*ux+cy*uy) + 9*(cx*ux+cy*uy)**2/2 - 3*(ux**2+uy**2)/2)
         return Feq
     
-    
-    def calcFeq2(self, density, velocity_field):
-        C = np.ascontiguousarray(
-             np.array([[0,1,1,0,-1,-1,-1,0,1], 
-                       [0,0,1,1,1,0,-1,-1,-1]]).T
-        )
-        c_dot_vf = (velocity_field[:, :, :, None] * C.T[None, None])
-        c_dot_vf = np.sum(c_dot_vf, axis=2)
-        vf_norm_square = np.sum(velocity_field**2, axis=2)[:, :, None]
-        feq = self.weights * (density[:, :, None] * (1 + 3 * c_dot_vf + 4.5*c_dot_vf**2 - 1.5*vf_norm_square))
-        return feq
 
-    # Simulation
-    def simulate(self, timesteps=1000, showDensityPlot=True, showVelocityPlot=True):
+    # Basic simulation function  
+    def simulate(self, timesteps=1000):
         
         for _ in range(timesteps):
             # apply drift/stream
@@ -188,3 +241,6 @@ class LB():
 
             # apply collision
             self.collision()
+
+            # communicate 
+            self.communicate()
