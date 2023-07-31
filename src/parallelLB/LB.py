@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os 
 from mpi4py import MPI
 
-PLOTDIR = os.getcwd() + '/src/plots'
+PLOTDIR = os.path.join(os.getcwd() + '/src/plots')
 
 """
 Skeleton code of Lattice Boltzmann class holding all parameters 
