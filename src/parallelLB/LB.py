@@ -43,10 +43,10 @@ class LB():
         self.X, self.Y = np.meshgrid(self.xaxis, self.yaxis)
         self.densityFig, self.densityAx = plt.subplots()
         self.densityFigureMesh = self.densityAx.pcolormesh(self.X, self.Y, self.rho, shading='auto')
-        self.densityFig.savefig(f'{PLOTDIR}/basic/density_timestep{0}.png')
+        #self.densityFig.savefig(f'{PLOTDIR}/basic/density_timestep{0}.png')
         self.velocityFig, self.velocityAx = plt.subplots()
         self.velocityStreamPlot = self.velocityAx.streamplot(self.X, self.Y, self.ux, self.uy, density = 2)
-        self.velocityFig.savefig(f'{PLOTDIR}/basic/velocity_timestep{0}.png')
+        #self.velocityFig.savefig(f'{PLOTDIR}/basic/velocity_timestep{0}.png')
 
     # call if parameters are changed to recalc density and velocities
     def fitParams(self): 
