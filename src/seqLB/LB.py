@@ -100,6 +100,7 @@ class LB():
     def mass(self):
         return np.sum(self.rho)
 
+    # used for plotting 
     xaxis = np.linspace(0, Nx, Nx)
     yaxis = np.linspace(0, Ny, Ny)
     X, Y = np.meshgrid(xaxis, yaxis)
