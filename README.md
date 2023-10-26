@@ -1,5 +1,9 @@
 # Implementation of the Lattice Boltzmann method
 
+<p align="middle">
+    <img src="animation.gif" width="50%" height="100%"/>
+</p>
+
 `LB.py` in `src/parallelLB` contains the Lattice Boltzmann class which holds the relevant parameters such as the current state, omega, the grid size and the functions to simulate streaming and collision. `src/parallelLB/boundaries.py` contains the implementations of the boundary conditions. The code contains many explanatory comments.  
 Analogously `src/seqLB` contains the sequential implementation. 
 
